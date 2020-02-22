@@ -43,7 +43,10 @@ module.exports = function (RED) {
             var commands = Milight.commands2[bulb];
         }
 
-        this.on('input', function (msg) {
+        this.on('input', function (msg, send, doneCb) {
+            const done = () => doneCb ? doneCb() : () => {};
+            const error = (err) => doneCb ? doneCb(err) : node.error(err);
+
             function argsHelper(vargs) {
                 var argsArray = [].slice.call(arguments);
                 if (config.bridgetype === 'v6' && bulb !== 'bridge') {
@@ -60,7 +63,7 @@ module.exports = function (RED) {
             light.ready().then(function () {
                 var command = msg.command ? msg.command : msg.topic;
                 if (commands == null) {
-                    node.error("Selected combination of bridge type and bulb type is not supported");
+                    error("Selected combination of bridge type and bulb type is not supported");
                     return;
                 }
                 if (bulb !== 'white') {
@@ -160,8 +163,9 @@ module.exports = function (RED) {
                             break;
                     }
                 }
-            }).catch(function (error) {
-                node.error('Milight error: ' + error);
+                done();
+            }).catch(function (err) {
+                error(err);
             });
         });
 
