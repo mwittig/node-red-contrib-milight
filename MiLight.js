@@ -6,31 +6,59 @@ module.exports = function (RED) {
     var Color = require('tinycolor2');
     var url = require('url');
 
-    function node(config) {
+    const getIpPort = (node, config, msg) => {
+        const value = RED.util.evaluateNodeProperty(config.ip, config.ipType, node, msg);
+        
+        var myUrl = url.parse("http://" + value);
+        var port;
+        if (myUrl.port != null) {
+            port = myUrl.port;
+        }
 
+        return [myUrl.hostname, port];
+    };
+
+    let cachedLightIpPort = [];
+    let cachedLight;
+    const getLight = (node, config, msg) => {
+        const ipPort = getIpPort(node, config, msg);
+        if (cachedLight && cachedLightIpPort[0] === ipPort[0] && cachedLightIpPort[1] === ipPort[1]) {
+            return  cachedLight;
+        }
+        if (cachedLight) {
+            cachedLight.close();
+        }
+        RED.log.info("Milight:" + ipPort[0] + ":" + ipPort[1]);
+        cachedLightIpPort = ipPort;
+        cachedLight = new Milight.MilightController({
+            ip: ipPort[0],
+            port: ipPort[1],
+            delayBetweenCommands: (config.bridgetype !== 'v6') ? 200 : 100,
+            commandRepeat: 1,
+            type: config.bridgetype,
+            broadcastMode: config.broadcast
+        });
+
+        return cachedLight;
+    };
+
+    function node(config) {
         RED.nodes.createNode(this, config);
         var node = this;
+
+        if (cachedLight) {
+            cachedLight.close();
+        }
 
         // backwards compatibility with previous versions
         if (config.bridgetype == null || config.bridgetype === '') {
             config.bridgetype = 'legacy'
         }
 
-        var myUrl = url.parse("http://" + config.ip);
-        var port;
-        if (myUrl.port != null) {
-            port = myUrl.port;
-        }
-        RED.log.info("Milight:" + myUrl.hostname + ":" + port);
-        var light = new Milight.MilightController({
-                ip: myUrl.hostname,
-                port: port,
-                delayBetweenCommands: (config.bridgetype !== 'v6') ? 200 : 100,
-                commandRepeat: 1,
-                type: config.bridgetype,
-                broadcastMode: config.broadcast
-            }),
-            zone = Number(config.zone),
+        const ipPort = getIpPort(node, config, {});
+        RED.log.info("Milight:" + ipPort[0] + ":" + ipPort[1]);
+        
+        var zone = Number(config.zone),
             bulb = config.bulbtype;
 
         if (config.bridgetype === 'v6') {
@@ -57,6 +85,7 @@ module.exports = function (RED) {
                 return values;
             }
 
+            const light = getLight(node, config, msg);
             light.ready().then(function () {
                 var command = msg.command ? msg.command : msg.topic;
                 if (commands == null) {
@@ -166,6 +195,7 @@ module.exports = function (RED) {
         });
 
         this.on('close', function (done) {
+            const light = getLight(node, config);
             light.close()
                 .catch(function (error) {
                     // just log the error as a normal log message 

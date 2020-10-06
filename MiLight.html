@@ -8,11 +8,19 @@
             bulbtype: {value:"white"},
             zone: {value:1,oneditsave:function(){this.zone=parseInt(this.zone)}},
             ip: {value:"255.255.255.255"},
+            ipType: {value:"str"},
             broadcast: {value:true}
         },
         inputs:1,
         outputs:0,
         icon: "light.png",
+        oneditprepare: () => {
+            $("#node-input-ip").typedInput({
+                type: "str",
+                types: ["str", "msg", "flow","global"],
+                typeField: "#node-input-ipType"
+            });
+        },
         label: function() {
             return this.name||"MiLight";
         }
@@ -49,6 +57,7 @@
     <div class="form-row">
         <label for="node-input-ip">IP Address</label>
         <input type="text" id="node-input-ip" placeholder="255.255.255.255">
+        <input type="hidden" id="node-input-ipType">
     </div>
     <div class="form-row">
         <label for="node-input-broadcast">Broadcast</label>
